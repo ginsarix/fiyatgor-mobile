@@ -1,10 +1,17 @@
 import { getProductByBarcode } from "@/services/api";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { debounce } from "lodash";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 export default function HomeScreen() {
   const successSoundRef = useRef<Audio.Sound | null>(null);
@@ -13,32 +20,37 @@ export default function HomeScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [barcode, setBarcode] = useState("");
   const [productName, setProductName] = useState("");
-  const [priceText, setPriceText] = useState("");
+  const [price, setPrice] = useState("");
+  const [currency, setCurrency] = useState("");
   const [isScanning, setIsScanning] = useState(true);
   const [torchOn, setTorchOn] = useState(false);
 
-
   async function getServerCodeStorage() {
-    return await AsyncStorage.getItem('server-code');
+    return await AsyncStorage.getItem("server-code");
   }
 
   async function setServerCodeStorage(serverCode: string) {
-    return await AsyncStorage.setItem('server-code', serverCode);
+    return await AsyncStorage.setItem("server-code", serverCode);
   }
 
-
-  const [serverCode, setServerCode] = useState('');
+  const [serverCode, setServerCode] = useState("");
 
   useEffect(() => {
     (async () => {
-      setServerCode(await getServerCodeStorage() ?? "diademo")
-    })()
-  }, [])
-  const debouncedServerCodeSetter = useCallback(debounce(() => setServerCodeStorage(serverCode), 1000), []);
+      setServerCode((await getServerCodeStorage()) ?? "diademo");
+    })();
+  }, []);
+  const debouncedServerCodeSetter = useMemo(
+    () =>
+      debounce((value: string) => {
+        setServerCodeStorage(value);
+      }, 750),
+    [],
+  );
 
   function setServerCodeInput(v: string) {
     setServerCode(v);
-    debouncedServerCodeSetter();
+    debouncedServerCodeSetter(v);
   }
 
   // Kamera resetlemek için key (Tekrar Tara garantisi)
@@ -56,7 +68,7 @@ export default function HomeScreen() {
   const playErrorSound = async () => {
     try {
       if (!errorSoundRef.current) return;
-      await errorSoundRef.current.playAsync();
+      await errorSoundRef.current.replayAsync();
     } catch (e) {
       console.log("Error sound error:", e);
     }
@@ -80,12 +92,12 @@ export default function HomeScreen() {
         });
 
         const { sound: successSound } = await Audio.Sound.createAsync(
-          require("../../assets/sounds/success.mp3")
+          require("../../assets/sounds/success.mp3"),
         );
 
         const { sound: errorSound } = await Audio.Sound.createAsync(
-          require("../../assets/sounds/error.mp3")
-        )
+          require("../../assets/sounds/error.mp3"),
+        );
 
         successSoundRef.current = successSound;
         errorSoundRef.current = errorSound;
@@ -114,17 +126,16 @@ export default function HomeScreen() {
         const obj = JSON.parse(s);
         const code = obj?.barcode || obj?.code || obj?.data;
         if (typeof code === "string") return code.trim();
-      } catch { }
+      } catch {}
     }
 
     // Normal barkod veya düz QR metni ise -> aynen dön
     return s;
   };
 
-
   const inFlightRef = useRef(false);
-  const lastCodeRef = useRef<string>("");
-  const lastAtRef = useRef<number>(0);
+  const lastCodeRef = useRef("");
+  const lastAtRef = useRef(0);
 
   const COOLDOWN_MS = 1200;
 
@@ -148,17 +159,19 @@ export default function HomeScreen() {
     setBarcode(code);
 
     try {
-      const product = await getProductByBarcode(serverCode, code);
+      const response = await getProductByBarcode(serverCode, code);
 
-      if (!product) {
+      if (!response?.product) {
         await playErrorSound();
         setProductName("");
-        setPriceText("");
+        setPrice("");
+        setCurrency("");
         return;
       }
 
-      setProductName(product.name);
-      setPriceText(product.price);
+      setProductName(response.product.name);
+      setPrice(response.product.price);
+      setCurrency(response.product.currency);
       await playSuccessSound();
     } catch (e) {
       await playErrorSound();
@@ -169,7 +182,6 @@ export default function HomeScreen() {
       }, COOLDOWN_MS);
     }
   };
-
 
   if (!permission) {
     return (
@@ -182,9 +194,7 @@ export default function HomeScreen() {
   if (!permission.granted) {
     return (
       <View style={styles.center}>
-        <Text style={{ marginBottom: 12 }}>
-          Kamera izni gerekli
-        </Text>
+        <Text style={{ marginBottom: 12 }}>Kamera izni gerekli</Text>
         <Pressable style={styles.btn} onPress={requestPermission}>
           <Text style={styles.btnText}>İzin Ver</Text>
         </Pressable>
@@ -193,103 +203,99 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={styles.page}>
-      {/* ÜST */}
-      <View style={styles.top}>
-        <TextInput
-          value={barcode}
-          placeholder="Barkod"
-          style={styles.input}
-          editable={false}
-        />
-        <Text style={styles.name}>
-          {productName || "Ürün adı"}
-        </Text>
-        <Text style={styles.price}>
-          {priceText || "0,00 TL"}
-        </Text>
-      </View>
+    <ScrollView
+      contentContainerStyle={{ flexGrow: 1 }}
+      keyboardShouldPersistTaps="never"
+      keyboardDismissMode="interactive"
+    >
+      <View style={styles.page}>
+        {/* ÜST */}
+        <View style={styles.top}>
+          <TextInput
+            value={barcode}
+            placeholder="Barkod"
+            style={styles.input}
+            editable={false}
+          />
+          <Text style={styles.name}>{productName || "Ürün adı"}</Text>
+          <Text style={styles.price}>
+            {`${new Intl.NumberFormat("tr-TR").format(Number(price))} ${currency}` ||
+              "0 TL"}
+          </Text>
+        </View>
 
-      {/* KAMERA */}
-      <View style={styles.cameraCard}>
-        <CameraView
-          key={cameraKey}
-          style={StyleSheet.absoluteFill}
-          facing="back"
-          onBarcodeScanned={isScanning ? onScan : undefined}
-          barcodeScannerSettings={{
-            barcodeTypes: [
-              "qr",
-              "ean13",
-              "ean8",
-              "code128",
-              "code39",
-              "upc_a",
-              "upc_e",
-              "pdf417",
-              "aztec",
-              "datamatrix",
-            ],
-          }}
-          enableTorch={torchOn}
-        />
+        {/* KAMERA */}
+        <View style={styles.cameraCard}>
+          <CameraView
+            key={cameraKey}
+            style={StyleSheet.absoluteFill}
+            facing="back"
+            onBarcodeScanned={isScanning ? onScan : undefined}
+            barcodeScannerSettings={{
+              barcodeTypes: [
+                "qr",
+                "ean13",
+                "ean8",
+                "code39",
+                "upc_a",
+                "upc_e",
+                "datamatrix",
+              ],
+            }}
+            enableTorch={torchOn}
+          />
 
-        <View style={styles.overlay}>
-          <View style={styles.frame}>
-            <Corner pos="tl" />
-            <Corner pos="tr" />
-            <Corner pos="bl" />
-            <Corner pos="br" />
+          <View style={styles.overlay}>
+            <View style={styles.frame}>
+              <Corner pos="tl" />
+              <Corner pos="tr" />
+              <Corner pos="bl" />
+              <Corner pos="br" />
+            </View>
+          </View>
+        </View>
+
+        {/* ALT */}
+        <View style={styles.bottomBar}>
+          <Pressable
+            style={[styles.smallBtn, !isScanning && styles.smallBtnOff]}
+            onPress={() => {
+              setIsScanning((v) => !v);
+              resetScan();
+            }}
+          >
+            <Text style={styles.smallBtnText}>
+              {isScanning ? "Taramayı Durdur" : "Taramayı Başlat"}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.smallBtn, !torchOn && styles.smallBtnOff]}
+            onPress={() => setTorchOn((v) => !v)}
+          >
+            <Text style={styles.smallBtnText}>
+              {torchOn ? "Feneri Kapat" : "Feneri Aç"}
+            </Text>
+          </Pressable>
+        </View>
+        <View style={styles.serverCodeInputContainer}>
+          <Text>Sunucu Kodu</Text>
+
+          <View>
+            <TextInput
+              placeholder="Sunucu Kodu"
+              onChangeText={setServerCodeInput}
+              value={serverCode}
+              style={styles.input}
+            />
           </View>
         </View>
       </View>
-
-      {/* ALT */}
-      <View style={styles.bottomBar}>
-        <Pressable
-          style={[
-            styles.smallBtn,
-            !isScanning && styles.smallBtnOff,
-          ]}
-          onPress={() => {
-            setIsScanning((v) => !v);
-            resetScan();
-          }}
-        >
-          <Text style={styles.smallBtnText}>
-            {isScanning
-              ? "Taramayı Durdur"
-              : "Taramayı Başlat"}
-          </Text>
-        </Pressable>
-
-        <Pressable
-          style={[
-            styles.smallBtn,
-            !torchOn && styles.smallBtnOff,
-          ]}
-          onPress={() =>
-            setTorchOn((v) => !v)
-          }
-        >
-          <Text style={styles.smallBtnText}>
-            {torchOn
-              ? "Feneri Kapat"
-              : "Feneri Aç"}
-          </Text>
-        </Pressable>
-      </View>
-      <TextInput onChangeText={setServerCodeInput} value={serverCode} style={styles.input} />
-
-    </View>
+    </ScrollView>
   );
 }
 
-function Corner({
-  pos,
-}: {
-  pos: "tl" | "tr" | "bl" | "br";
-}) {
+function Corner({ pos }: { pos: "tl" | "tr" | "bl" | "br" }) {
   const extra =
     pos === "tl"
       ? styles.tl
@@ -306,6 +312,9 @@ const CORNER = 34;
 const THICK = 5;
 
 const styles = StyleSheet.create({
+  serverCodeInputContainer: {
+    paddingInline: 16,
+  },
   page: {
     flex: 1,
     backgroundColor: "#f2f3f7",
