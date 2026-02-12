@@ -1,7 +1,9 @@
 import { getProductByBarcode } from "@/services/api";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from "expo-av";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useEffect, useRef, useState } from "react";
+import { debounce } from "lodash";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 export default function HomeScreen() {
@@ -15,6 +17,30 @@ export default function HomeScreen() {
   const [isScanning, setIsScanning] = useState(true);
   const [torchOn, setTorchOn] = useState(false);
 
+
+  async function getServerCodeStorage() {
+    return await AsyncStorage.getItem('server-code');
+  }
+
+  async function setServerCodeStorage(serverCode: string) {
+    return await AsyncStorage.setItem('server-code', serverCode);
+  }
+
+
+  const [serverCode, setServerCode] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      setServerCode(await getServerCodeStorage() ?? "diademo")
+    })()
+  }, [])
+  const debouncedServerCodeSetter = useCallback(debounce(() => setServerCodeStorage(serverCode), 1000), []);
+
+  function setServerCodeInput(v: string) {
+    setServerCode(v);
+    debouncedServerCodeSetter();
+  }
+
   // Kamera resetlemek için key (Tekrar Tara garantisi)
   const [cameraKey, setCameraKey] = useState(0);
 
@@ -27,7 +53,7 @@ export default function HomeScreen() {
     }
   };
 
-    const playErrorSound = async () => {
+  const playErrorSound = async () => {
     try {
       if (!errorSoundRef.current) return;
       await errorSoundRef.current.playAsync();
@@ -96,23 +122,54 @@ export default function HomeScreen() {
   };
 
 
+  const inFlightRef = useRef(false);
+  const lastCodeRef = useRef<string>("");
+  const lastAtRef = useRef<number>(0);
+
+  const COOLDOWN_MS = 1200;
+
   const onScan = async ({ data }: { data: string }) => {
-    if (!isScanning) return;
+    const code = getCodeFromScan(data); // senin fonksiyonun
+    const now = Date.now();
 
-    setBarcode(data);
-
-    const product = await getProductByBarcode(data);
-
-    if (!product) {
-      await playErrorSound();
+    // Aynı barkod çok hızlı tekrar geldiyse yok say
+    if (code === lastCodeRef.current && now - lastAtRef.current < COOLDOWN_MS) {
+      return;
     }
 
-    if (product) {
+    // Bir istek devam ediyorsa yenisini yok say
+    if (inFlightRef.current) return;
+
+    // Kilitle
+    inFlightRef.current = true;
+    lastCodeRef.current = code;
+    lastAtRef.current = now;
+
+    setBarcode(code);
+
+    try {
+      const product = await getProductByBarcode(serverCode, code);
+
+      if (!product) {
+        await playErrorSound();
+        setProductName("");
+        setPriceText("");
+        return;
+      }
+
       setProductName(product.name);
       setPriceText(product.price);
       await playSuccessSound();
+    } catch (e) {
+      await playErrorSound();
+    } finally {
+      // Kısa bir süre sonra kilidi aç (kamera aynı barkodu hala görüyorsa tekrar yağmasın)
+      setTimeout(() => {
+        inFlightRef.current = false;
+      }, COOLDOWN_MS);
     }
   };
+
 
   if (!permission) {
     return (
@@ -222,6 +279,8 @@ export default function HomeScreen() {
           </Text>
         </Pressable>
       </View>
+      <TextInput onChangeText={setServerCodeInput} value={serverCode} style={styles.input} />
+
     </View>
   );
 }

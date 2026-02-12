@@ -10,9 +10,9 @@ export type ErrorResponse = {
 
 const API_URL = "http://192.168.1.166:3000";
 
-export async function getProductByBarcode(barcode: string) {
+export async function getProductByBarcode(serverCode: string, barcode: string) {
     try {
-        const res = await fetch(`${API_URL}/products/${barcode}`);
+        const res = await fetch(`${API_URL}/servers/${serverCode}/products/${barcode}`);
 
         const text = await res.text(); // önce text al
 
