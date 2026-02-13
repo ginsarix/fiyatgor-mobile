@@ -24,12 +24,11 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
+      "android": {
+        "softwareKeyboardLayoutMode": "manual"
+      },
       "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "CAMERA",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
-      ]
+      "permissions": ["CAMERA", "android.permission.CAMERA"]
     },
     "web": {
       "output": "static",

@@ -5,6 +5,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { debounce } from "lodash";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+import ModalScreen from "../server-code-modal";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 export default function HomeScreen() {
   const successSoundRef = useRef<Audio.Sound | null>(null);
@@ -19,39 +22,17 @@ export default function HomeScreen() {
 
   const [permission, requestPermission] = useCameraPermissions();
   const [barcode, setBarcode] = useState("");
+
+  const [productLoading, setProductLoading] = useState(false);
   const [productName, setProductName] = useState("");
   const [price, setPrice] = useState("");
   const [currency, setCurrency] = useState("");
+
   const [isScanning, setIsScanning] = useState(true);
   const [torchOn, setTorchOn] = useState(false);
 
-  async function getServerCodeStorage() {
-    return await AsyncStorage.getItem("server-code");
-  }
-
-  async function setServerCodeStorage(serverCode: string) {
-    return await AsyncStorage.setItem("server-code", serverCode);
-  }
-
+  const [serverCodeModal, setServerCodeModal] = useState(false);
   const [serverCode, setServerCode] = useState("");
-
-  useEffect(() => {
-    (async () => {
-      setServerCode((await getServerCodeStorage()) ?? "diademo");
-    })();
-  }, []);
-  const debouncedServerCodeSetter = useMemo(
-    () =>
-      debounce((value: string) => {
-        setServerCodeStorage(value);
-      }, 750),
-    [],
-  );
-
-  function setServerCodeInput(v: string) {
-    setServerCode(v);
-    debouncedServerCodeSetter(v);
-  }
 
   // Kamera resetlemek için key (Tekrar Tara garantisi)
   const [cameraKey, setCameraKey] = useState(0);
@@ -159,6 +140,7 @@ export default function HomeScreen() {
     setBarcode(code);
 
     try {
+      setProductLoading(true);
       const response = await getProductByBarcode(serverCode, code);
 
       if (!response?.product) {
@@ -173,13 +155,15 @@ export default function HomeScreen() {
       setPrice(response.product.price);
       setCurrency(response.product.currency);
       await playSuccessSound();
-    } catch (e) {
+    } catch {
       await playErrorSound();
     } finally {
       // Kısa bir süre sonra kilidi aç (kamera aynı barkodu hala görüyorsa tekrar yağmasın)
       setTimeout(() => {
         inFlightRef.current = false;
       }, COOLDOWN_MS);
+
+      setProductLoading(false);
     }
   };
 
@@ -217,11 +201,18 @@ export default function HomeScreen() {
             style={styles.input}
             editable={false}
           />
-          <Text style={styles.name}>{productName || "Ürün adı"}</Text>
-          <Text style={styles.price}>
-            {`${new Intl.NumberFormat("tr-TR").format(Number(price))} ${currency}` ||
-              "0 TL"}
-          </Text>
+
+          {productLoading ? (
+            <ActivityIndicator style={styles.loadingSpinner} size="large" />
+          ) : (
+            <>
+              <Text style={styles.name}>{productName || "Ürün adı"}</Text>
+              <Text style={styles.price}>
+                {`${new Intl.NumberFormat("tr-TR").format(Number(price))} ${currency}` ||
+                  "0 TL"}
+              </Text>
+            </>
+          )}
         </View>
 
         {/* KAMERA */}
@@ -236,7 +227,6 @@ export default function HomeScreen() {
                 "qr",
                 "ean13",
                 "ean8",
-                "code39",
                 "upc_a",
                 "upc_e",
                 "datamatrix",
@@ -267,6 +257,11 @@ export default function HomeScreen() {
             <Text style={styles.smallBtnText}>
               {isScanning ? "Taramayı Durdur" : "Taramayı Başlat"}
             </Text>
+            <MaterialIcons
+              name={isScanning ? "stop-circle" : "play-circle"}
+              color="#fff"
+              size={22}
+            />
           </Pressable>
 
           <Pressable
@@ -276,21 +271,27 @@ export default function HomeScreen() {
             <Text style={styles.smallBtnText}>
               {torchOn ? "Feneri Kapat" : "Feneri Aç"}
             </Text>
+            <MaterialIcons
+              name={torchOn ? "flashlight-off" : "flashlight-on"}
+              color="#fff"
+              size={22}
+            />
           </Pressable>
         </View>
-        <View style={styles.serverCodeInputContainer}>
-          <Text>Sunucu Kodu</Text>
-
-          <View>
-            <TextInput
-              placeholder="Sunucu Kodu"
-              onChangeText={setServerCodeInput}
-              value={serverCode}
-              style={styles.input}
-            />
-          </View>
+        <View style={styles.serverCodeModalTriggerContainer}>
+          <Pressable
+            style={styles.smallBtn}
+            onPress={() => setServerCodeModal(true)}
+          >
+            <Text style={styles.smallBtnText}>Sunucu Kodunu Değiştir</Text>
+          </Pressable>
         </View>
       </View>
+      <ModalScreen
+        serverCodeChanged={(serverCode) => setServerCode(serverCode)}
+        isVisible={serverCodeModal}
+        onClose={() => setServerCodeModal(false)}
+      />
     </ScrollView>
   );
 }
@@ -312,7 +313,7 @@ const CORNER = 34;
 const THICK = 5;
 
 const styles = StyleSheet.create({
-  serverCodeInputContainer: {
+  serverCodeModalTriggerContainer: {
     paddingInline: 16,
   },
   page: {
@@ -334,6 +335,7 @@ const styles = StyleSheet.create({
     borderColor: "#d7dbe6",
     fontSize: 16,
   },
+  loadingSpinner: { marginTop: 14 },
   name: {
     marginTop: 14,
     fontSize: 26,
@@ -401,6 +403,9 @@ const styles = StyleSheet.create({
   },
   smallBtn: {
     flex: 1,
+    flexDirection: "row",
+
+    justifyContent: "space-around",
     backgroundColor: "#111",
     paddingVertical: 12,
     borderRadius: 10,
