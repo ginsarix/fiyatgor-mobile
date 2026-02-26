@@ -1,9 +1,7 @@
 import { getProductByBarcode } from "@/services/api";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { debounce } from "lodash";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -198,6 +196,7 @@ export default function HomeScreen() {
           <TextInput
             value={barcode}
             placeholder="Barkod"
+            placeholderTextColor="gray"
             style={styles.input}
             editable={false}
           />
@@ -206,11 +205,12 @@ export default function HomeScreen() {
             <ActivityIndicator style={styles.loadingSpinner} size="large" />
           ) : (
             <>
-              <Text style={styles.name}>{productName || "Ürün adı"}</Text>
-              <Text style={styles.price}>
-                {`${new Intl.NumberFormat("tr-TR").format(Number(price))} ${currency}` ||
-                  "0 TL"}
-              </Text>
+              {productName && <Text style={styles.name}>{productName}</Text>}
+              {price && (
+                <Text style={styles.price}>
+                  {`${Number(price).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`}
+                </Text>
+              )}
             </>
           )}
         </View>

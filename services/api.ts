@@ -9,7 +9,7 @@ export type ProductResponse = {
   message: string;
 };
 
-const API_URL = "http://192.168.1.166:3000";
+const API_URL = "https://api.fiyatgor.panunet.com.tr";
 
 export async function getProductByBarcode(serverCode: string, barcode: string) {
   try {
