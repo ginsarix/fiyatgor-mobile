@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "infoPlist": {
         "bundleIdentifier": "com.panuteknoloji.fiyatgor",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Uygulama, ürün barkodlarını ve QR kodlarını tarayarak fiyat bilgilerini göstermek için kamerayı kullanır."
       },
       "bundleIdentifier": "com.panuteknoloji.fiyatgor"
     },
