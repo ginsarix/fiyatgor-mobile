@@ -1,3 +1,5 @@
+import { API_URL } from "@/constants/api";
+
 export type Product = {
   name: string;
   price: string;
@@ -8,8 +10,6 @@ export type ProductResponse = {
   product?: Product;
   message: string;
 };
-
-const API_URL = "https://api.fiyatgor.panunet.com.tr";
 
 export async function getProductByBarcode(serverCode: string, barcode: string) {
   try {

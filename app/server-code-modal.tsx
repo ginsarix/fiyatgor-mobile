@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TextInput,
   Platform,
+  Keyboard,
 } from "react-native";
 import { useKeyboardHandler } from "react-native-keyboard-controller";
 import { PropsWithChildren, useEffect, useMemo, useState } from "react";
@@ -15,8 +16,17 @@ import { debounce } from "lodash";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
+  withTiming,
+  runOnJS,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from "react-native-gesture-handler";
+import { ThemeColors, useTheme } from "@/constants/theme";
 
 type Props = PropsWithChildren<{
   serverCodeChanged: (serverCode: string) => unknown;
@@ -24,9 +34,11 @@ type Props = PropsWithChildren<{
   onClose: () => void;
 }>;
 
+const DISMISS_THRESHOLD = 80;
+const VELOCITY_THRESHOLD = 1500;
+
 const useGradualAnimation = () => {
   const height = useSharedValue(0);
-
   useKeyboardHandler(
     {
       onMove: (event) => {
@@ -44,30 +56,35 @@ export default function ServerCodeModal({
   isVisible,
   onClose,
 }: Props) {
-  const [hasEverSaved, setHasEverSaved] = useState(false); // a flag so that we dont show the saved text when saving is false but nothing has been ever saved (like at startup)
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
+
+  const [hasEverSaved, setHasEverSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  async function getServerCodeStorage() {
-    return await AsyncStorage.getItem("server-code");
-  }
-
-  async function setServerCodeStorage(serverCode: string) {
-    await AsyncStorage.setItem("server-code", serverCode);
-    setHasEverSaved(true);
-    setSaving(false);
-  }
-
   const [serverCode, setServerCode] = useState("");
+
+  const translateY = useSharedValue(800);
+  const { height } = useGradualAnimation();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     (async () => {
-      setServerCode((await getServerCodeStorage()) ?? "diademo");
+      setServerCode((await AsyncStorage.getItem("server-code")) ?? "diademo");
     })();
   }, []);
+
+  useEffect(() => {
+    if (isVisible) {
+      translateY.value = withSpring(0, { damping: 50, stiffness: 300 });
+    }
+  }, [isVisible]);
+
   const debouncedServerCodeSetter = useMemo(
     () =>
       debounce((value: string) => {
-        setServerCodeStorage(value);
+        AsyncStorage.setItem("server-code", value);
+        setHasEverSaved(true);
+        setSaving(false);
       }, 750),
     [],
   );
@@ -78,110 +95,135 @@ export default function ServerCodeModal({
 
   function setServerCodeInput(v: string) {
     setServerCode(v);
-
     setSaving(true);
     debouncedServerCodeSetter(v);
   }
 
-  const { height } = useGradualAnimation();
+  const dismissSheet = () => {
+    translateY.value = 800;
+    Keyboard.dismiss();
+    onClose();
+  };
 
-  const insets = useSafeAreaInsets();
+  const gesture = Gesture.Pan()
+    .onUpdate((e) => {
+      translateY.value =
+        e.translationY < 0 ? e.translationY * 0.15 : e.translationY;
+    })
+    .onEnd((e) => {
+      if (
+        e.translationY > DISMISS_THRESHOLD ||
+        e.velocityY > VELOCITY_THRESHOLD
+      ) {
+        translateY.value = withTiming(800, { duration: 280 }, (finished) => {
+          if (finished) runOnJS(dismissSheet)();
+        });
+      } else {
+        translateY.value = withSpring(0, { damping: 50, stiffness: 300 });
+      }
+    });
 
   const animatedStyle = useAnimatedStyle(() => {
-    // 1. Calculate the active height
-    const activeHeight = height.value;
-
-    // lock translation to 0 so it doesnt dip below the screen
-    if (activeHeight <= 0) {
-      return {
-        transform: [{ translateY: 0 }],
-      };
-    }
-
-    // only apply offset when keyboard is actually up
-    // using Math.max to ensure its never negative
+    const keyboardOffset = height.value;
     const offset = Platform.OS === "android" ? insets.bottom : 0;
-    const translation = Math.max(activeHeight - offset, 0);
+    const keyboardTranslation =
+      keyboardOffset <= 0 || translateY.value > 0
+        ? 0
+        : Math.max(keyboardOffset - offset, 0);
 
     return {
-      transform: [{ translateY: -translation }],
+      transform: [{ translateY: translateY.value - keyboardTranslation }],
     };
   }, [height, insets.bottom]);
 
   return (
-    <View>
-      <Modal
-        animationType="slide"
-        allowSwipeDismissal
-        onRequestClose={onClose}
-        transparent={true}
-        visible={isVisible}
-      >
-        <Animated.View style={[styles.modalContent, animatedStyle]}>
-          <View style={styles.titleContainer}>
-            <Text style={styles.title}>Sunucu Kodunu Değiştir</Text>
-            <Pressable onPress={onClose}>
-              <MaterialIcons name="close" color="#fff" size={22} />
-            </Pressable>
-          </View>
-          <View style={styles.inputContainer}>
-            <Text>Sunucu Kodu</Text>
-            <TextInput
-              placeholder="Sunucu Kodu"
-              onChangeText={setServerCodeInput}
-              value={serverCode}
-              style={styles.input}
-            />
-            <Text style={styles.saveStateText}>
-              {saving
-                ? "Kaydediliyor..."
-                : hasEverSaved && !saving && "Kaydedildi"}
-            </Text>
-          </View>
-        </Animated.View>
-      </Modal>
-    </View>
+    <Modal
+      animationType="none"
+      onRequestClose={onClose}
+      transparent
+      visible={isVisible}
+    >
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={styles.overlay}>
+          <GestureDetector gesture={gesture}>
+            <Animated.View style={[styles.modalContent, animatedStyle]}>
+              <View style={styles.titleContainer}>
+                <Text style={styles.title}>Sunucu Kodunu Değiştir</Text>
+                <Pressable onPress={onClose}>
+                  <MaterialIcons name="close" color="#fff" size={22} />
+                </Pressable>
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Sunucu Kodu</Text>
+                <TextInput
+                  placeholder="Sunucu Kodu"
+                  placeholderTextColor={t.inputPlaceholder}
+                  onChangeText={setServerCodeInput}
+                  value={serverCode}
+                  style={styles.input}
+                />
+                <Text style={styles.saveStateText}>
+                  {saving
+                    ? "Kaydediliyor..."
+                    : hasEverSaved && !saving && "Kaydedildi"}
+                </Text>
+              </View>
+            </Animated.View>
+          </GestureDetector>
+        </View>
+      </GestureHandlerRootView>
+    </Modal>
   );
 }
 
-const styles = StyleSheet.create({
-  modalContent: {
-    width: "100%",
-    backgroundColor: "#f2f3f7",
-    borderTopRightRadius: 18,
-    borderTopLeftRadius: 18,
-    position: "absolute",
-    bottom: 0,
-    paddingBottom: Platform.OS === "ios" ? 20 : 10, // for safe area
-  },
-  titleContainer: {
-    backgroundColor: "#464C55",
-    borderTopRightRadius: 10,
-    borderTopLeftRadius: 10,
-    paddingHorizontal: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  title: {
-    color: "#fff",
-    fontSize: 16,
-  },
-  inputContainer: {
-    padding: 16,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
-  input: {
-    backgroundColor: "white",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: "#d7dbe6",
-    fontSize: 16,
-  },
-  saveStateText: {
-    fontSize: 12,
-  },
-});
+function makeStyles(t: ThemeColors) {
+  return StyleSheet.create({
+    overlay: {
+      flex: 1,
+      justifyContent: "flex-end",
+    },
+    modalContent: {
+      width: "100%",
+      backgroundColor: t.modalSheetBg,
+      borderTopRightRadius: 18,
+      borderTopLeftRadius: 18,
+      paddingBottom: Platform.OS === "ios" ? 20 : 10,
+    },
+    titleContainer: {
+      backgroundColor: t.modalTitleBarBg,
+      borderTopRightRadius: 10,
+      borderTopLeftRadius: 10,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    title: {
+      color: "#fff",
+      fontSize: 16,
+    },
+    inputContainer: {
+      padding: 16,
+    },
+    label: {
+      color: t.textPrimary,
+      marginBottom: 6,
+    },
+    input: {
+      backgroundColor: t.inputBg,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderWidth: 1,
+      borderColor: t.inputBorder,
+      fontSize: 16,
+      color: t.inputText,
+    },
+    saveStateText: {
+      fontSize: 12,
+      color: t.saveStateText,
+      marginTop: 4,
+    },
+  });
+}

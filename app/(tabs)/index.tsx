@@ -1,10 +1,11 @@
 import { getProductByBarcode } from "@/services/api";
 import { Audio } from "expo-av";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,17 +15,19 @@ import {
 } from "react-native";
 import ModalScreen from "../server-code-modal";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-
-type ScanEntry = {
-  id: number;
-  barcode: string;
-  productName: string | null;
-  price: string | null;
-  currency: string | null;
-  demo?: boolean;
-};
+import * as Haptics from "expo-haptics";
+import { debounce } from "lodash";
+import { ThemeColors, useTheme } from "@/constants/theme";
+import { CatalogModal } from "../catalog-modal";
+import { ScanHistory } from "../scan-history";
+import { ScanEntry } from "@/types/scan-history";
+import { OnboardingModal } from "../onboarding";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function HomeScreen() {
+  const t = useTheme();
+  const styles = useMemo(() => makeHomeStyles(t), [t]);
+
   const successSoundRef = useRef<Audio.Sound | null>(null);
   const errorSoundRef = useRef<Audio.Sound | null>(null);
 
@@ -53,9 +56,29 @@ export default function HomeScreen() {
   const [serverCodeModal, setServerCodeModal] = useState(false);
   const [serverCode, setServerCode] = useState("");
 
+  const [catalogModal, setCatalogModal] = useState(false);
+  const [onboardingModal, setOnboardingModal] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem("onboarding-seen").then((val) => {
+      if (!val) setOnboardingModal(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    debounce(() => {}, 1000);
+  }, [serverCode]);
+
   // Kamera resetlemek için key (Tekrar Tara garantisi)
   const [cameraKey, setCameraKey] = useState(0);
 
+  const initiateSuccessUX = async () => {
+    if (Platform.OS === "android")
+      await Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Confirm);
+    else Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    await playSuccessSound();
+  };
   const playSuccessSound = async () => {
     try {
       if (!successSoundRef.current) return;
@@ -63,6 +86,14 @@ export default function HomeScreen() {
     } catch (e) {
       console.log("Success sound error:", e);
     }
+  };
+
+  const initiateErrorUX = async () => {
+    if (Platform.OS === "android")
+      await Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Reject);
+    else Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+
+    await playErrorSound();
   };
 
   const playErrorSound = async () => {
@@ -115,6 +146,7 @@ export default function HomeScreen() {
       errorSoundRef.current?.unloadAsync();
     };
   }, []);
+
   const getCodeFromScan = (raw: string) => {
     const s = (raw || "").trim();
 
@@ -172,7 +204,7 @@ export default function HomeScreen() {
 
   const demoScan = async () => {
     setBarcode("5555555555555");
-    await playSuccessSound();
+    await initiateSuccessUX();
     setProductName("İnşaat Demiri (8mm)");
     setPrice("12000");
     setCurrency("TL");
@@ -186,7 +218,7 @@ export default function HomeScreen() {
   };
 
   const onScan = async ({ data }: { data: string }) => {
-    const code = getCodeFromScan(data); // senin fonksiyonun
+    const code = getCodeFromScan(data);
     const now = Date.now();
 
     // Aynı barkod çok hızlı tekrar geldiyse yok say
@@ -209,7 +241,7 @@ export default function HomeScreen() {
       const response = await getProductByBarcode(serverCode, code);
 
       if (!response?.product) {
-        await playErrorSound();
+        await initiateErrorUX();
         setProductName(null);
         setPrice(null);
         setCurrency(null);
@@ -231,7 +263,8 @@ export default function HomeScreen() {
         price: response.product.price,
         currency: response.product.currency,
       });
-      await playSuccessSound();
+
+      await initiateSuccessUX();
     } catch {
       appendHistory({
         barcode: code,
@@ -239,7 +272,7 @@ export default function HomeScreen() {
         price: null,
         currency: null,
       });
-      await playErrorSound();
+      await initiateErrorUX();
     } finally {
       // Kısa bir süre sonra kilidi aç (kamera aynı barkodu hala görüyorsa tekrar yağmasın)
       setTimeout(() => {
@@ -267,7 +300,7 @@ export default function HomeScreen() {
   if (!permission.granted) {
     return (
       <View style={[styles.center, styles.page]}>
-        <Text style={{ marginBottom: 12 }}>
+        <Text style={{ marginBottom: 12, color: t.textPrimary }}>
           Kamera erişimi barkod taramak için gereklidir
         </Text>
 
@@ -287,14 +320,26 @@ export default function HomeScreen() {
       <View style={styles.page}>
         {/* ÜST */}
         <View style={styles.top}>
-          <TextInput
-            value={barcode}
-            placeholder="Barkod"
-            placeholderTextColor="gray"
-            style={styles.input}
-            onChangeText={(t) => setBarcode(t)}
-            onSubmitEditing={() => onScan({ data: barcode })}
-          />
+          <View style={styles.inputRow}>
+            <TextInput
+              value={barcode}
+              placeholder="Barkod"
+              placeholderTextColor={t.inputPlaceholder}
+              style={styles.input}
+              onChangeText={(t) => setBarcode(t)}
+              onSubmitEditing={() => onScan({ data: barcode })}
+            />
+            <Pressable
+              style={styles.helpBtn}
+              onPress={() => setOnboardingModal(true)}
+            >
+              <MaterialIcons
+                name="help-outline"
+                size={22}
+                color={t.textSecondary}
+              />
+            </Pressable>
+          </View>
 
           {productLoading ? (
             <ActivityIndicator style={styles.loadingSpinner} size="large" />
@@ -329,12 +374,10 @@ export default function HomeScreen() {
               facing="back"
               onBarcodeScanned={(result) => {
                 if (!isBarcodeInFrame(result.bounds)) {
-                  // Barcode outside frame — clear highlight if shown
                   if (barcodeBounds !== null) setBarcodeBounds(null);
                   return;
                 }
 
-                // Update highlight on every frame
                 setBarcodeBounds(result.bounds);
                 if (boundsTimerRef.current)
                   clearTimeout(boundsTimerRef.current);
@@ -428,32 +471,26 @@ export default function HomeScreen() {
           </Pressable>
         </View>
         <View style={styles.inlinePaddedContainer}>
+          <Pressable
+            style={styles.smallBtn}
+            onPress={() => setCatalogModal(true)}
+          >
+            <Text style={styles.smallBtnText}>Kataloğu Aç</Text>
+          </Pressable>
+        </View>
+        <View style={styles.inlinePaddedContainer}>
           <Pressable style={styles.smallBtn} onPress={() => demoScan()}>
             <Text style={styles.smallBtnText}>Demo Barkod Dene</Text>
           </Pressable>
         </View>
-
         {scanHistory.length > 0 && (
-          <View style={styles.historySection}>
-            <View style={styles.historySectionTitle}>
-              <Text style={styles.historyTitle}>Taranan Barkodlar</Text>
-              <Pressable
-                style={styles.tinyBtn}
-                onPress={() => setScanHistory([])}
-              >
-                <Text style={styles.tinyBtnText}>Temizle</Text>
-                <MaterialIcons
-                  name="delete-sweep"
-                  color={"#9ca3af"}
-                  size={14}
-                  style={{ marginLeft: 6 }}
-                />
-              </Pressable>
-            </View>
-            {scanHistory.map((entry) => (
-              <ScanHistoryItem key={entry.id} entry={entry} />
-            ))}
-          </View>
+          <ScanHistory
+            onChange={(newEntries) => setScanHistory(newEntries)}
+            scanHistory={scanHistory}
+            homeStyles={{
+              ...styles,
+            }}
+          />
         )}
       </View>
       <ModalScreen
@@ -461,293 +498,174 @@ export default function HomeScreen() {
         isVisible={serverCodeModal}
         onClose={() => setServerCodeModal(false)}
       />
+
+      <CatalogModal
+        visible={catalogModal}
+        onClose={() => setCatalogModal(false)}
+        serverCode={serverCode}
+      />
+
+      <OnboardingModal
+        visible={onboardingModal}
+        onClose={() => {
+          setOnboardingModal(false);
+          AsyncStorage.setItem("onboarding-seen", "1");
+        }}
+      />
     </ScrollView>
   );
 }
 
-function ScanHistoryItem({ entry }: { entry: ScanEntry }) {
-  const [open, setOpen] = useState(false);
-  const found = entry.productName !== null;
-
-  return (
-    <View style={historyStyles.card}>
-      <Pressable
-        style={historyStyles.header}
-        onPress={() => setOpen((v) => !v)}
-      >
-        <MaterialIcons
-          name={open ? "keyboard-arrow-down" : "keyboard-arrow-right"}
-          size={20}
-          color="#555"
-        />
-        <Text style={historyStyles.barcode} numberOfLines={1}>
-          {entry.barcode}
-        </Text>
-        <View
-          style={[
-            historyStyles.badge,
-            found ? historyStyles.badgeFound : historyStyles.badgeNotFound,
-          ]}
-        >
-          <Text style={historyStyles.badgeText}>
-            {found ? (!entry.demo ? "Bulundu" : "Demo") : "Bulunamadı"}
-          </Text>
-        </View>
-      </Pressable>
-
-      {open && (
-        <View style={historyStyles.body}>
-          {found ? (
-            <>
-              <Text style={historyStyles.bodyName}>{entry.productName}</Text>
-              <Text style={historyStyles.bodyPrice}>
-                {`${Number(entry.price).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${entry.currency}`}
-              </Text>
-            </>
-          ) : (
-            <Text style={historyStyles.bodyNotFound}>Ürün bulunamadı</Text>
-          )}
-        </View>
-      )}
-    </View>
-  );
-}
-
-const historyStyles = StyleSheet.create({
-  card: {
-    backgroundColor: "white",
-    borderRadius: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#e0e3ec",
-    overflow: "hidden",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  barcode: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#222",
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 20,
-  },
-  badgeFound: {
-    backgroundColor: "#e6f4ea",
-  },
-  badgeNotFound: {
-    backgroundColor: "#fce8e6",
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#444",
-  },
-  body: {
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    paddingTop: 2,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-  },
-  bodyName: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#222",
-    marginBottom: 4,
-  },
-  bodyPrice: {
-    fontSize: 22,
-    fontWeight: "900",
-    color: "#111",
-  },
-  bodyNotFound: {
-    fontSize: 14,
-    color: "#888",
-    fontStyle: "italic",
-  },
-});
-
 function Corner({ pos }: { pos: "tl" | "tr" | "bl" | "br" }) {
   const extra =
     pos === "tl"
-      ? styles.tl
+      ? cornerStyles.tl
       : pos === "tr"
-        ? styles.tr
+        ? cornerStyles.tr
         : pos === "bl"
-          ? styles.bl
-          : styles.br;
+          ? cornerStyles.bl
+          : cornerStyles.br;
 
-  return <View style={[styles.corner, extra]} />;
+  return <View style={[cornerStyles.corner, extra]} />;
 }
 
 const CORNER = 34;
 const THICK = 5;
 
-const styles = StyleSheet.create({
-  inlinePaddedContainer: {
-    paddingInline: 16,
-    marginBottom: 10,
-  },
-  page: {
-    flex: 1,
-    backgroundColor: "#f2f3f7",
-    paddingTop: 30,
-  },
-  top: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-  },
-  input: {
-    backgroundColor: "white",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: "#d7dbe6",
-    fontSize: 16,
-  },
-  loadingSpinner: { marginTop: 14 },
-  name: {
-    marginTop: 14,
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#222",
-  },
-  price: {
-    marginTop: 10,
-    fontSize: 40,
-    fontWeight: "900",
-    color: "#222",
-  },
-  cameraCard: {
-    marginTop: 10,
-    marginHorizontal: 16,
-    height: 360,
-    borderRadius: 14,
-    overflow: "hidden",
-    backgroundColor: "#000",
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  frame: {
-    width: "86%",
-    height: "72%",
-  },
+const cornerStyles = StyleSheet.create({
   corner: {
     position: "absolute",
     width: CORNER,
     height: CORNER,
     borderColor: "white",
   },
-  tl: {
-    top: 0,
-    left: 0,
-    borderLeftWidth: THICK,
-    borderTopWidth: THICK,
-  },
-  tr: {
-    top: 0,
-    right: 0,
-    borderRightWidth: THICK,
-    borderTopWidth: THICK,
-  },
-  bl: {
-    bottom: 0,
-    left: 0,
-    borderLeftWidth: THICK,
-    borderBottomWidth: THICK,
-  },
+  tl: { top: 0, left: 0, borderLeftWidth: THICK, borderTopWidth: THICK },
+  tr: { top: 0, right: 0, borderRightWidth: THICK, borderTopWidth: THICK },
+  bl: { bottom: 0, left: 0, borderLeftWidth: THICK, borderBottomWidth: THICK },
   br: {
     bottom: 0,
     right: 0,
     borderRightWidth: THICK,
     borderBottomWidth: THICK,
   },
-  bottomBar: {
-    flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  smallBtn: {
-    flex: 1,
-    flexDirection: "row",
-
-    justifyContent: "space-around",
-    backgroundColor: "#111",
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  smallBtnOff: {
-    backgroundColor: "#2b2b2b",
-  },
-  smallBtnText: {
-    color: "white",
-    fontWeight: "800",
-  },
-  tinyBtn: {
-    flexDirection: "row",
-
-    justifyContent: "space-around",
-    backgroundColor: "#111",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    alignItems: "center",
-  },
-  tinyBtnText: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 16,
-  },
-  btn: {
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    backgroundColor: "black",
-    borderRadius: 10,
-  },
-  btnText: {
-    color: "white",
-    fontWeight: "700",
-  },
-  historySection: {
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-    marginTop: 16,
-  },
-  historySectionTitle: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10,
-    alignItems: "center",
-  },
-  historyTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#888",
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-    includeFontPadding: false,
-    textAlignVertical: "center",
-  },
 });
+
+function makeHomeStyles(t: ThemeColors) {
+  return StyleSheet.create({
+    inlinePaddedContainer: {
+      paddingInline: 16,
+      marginBottom: 10,
+    },
+    page: {
+      flex: 1,
+      backgroundColor: t.pageBg,
+      paddingTop: 30,
+    },
+    top: {
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 12,
+    },
+    inputRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    input: {
+      flex: 1,
+      backgroundColor: t.inputBg,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderWidth: 1,
+      borderColor: t.inputBorder,
+      fontSize: 16,
+      color: t.inputText,
+    },
+    helpBtn: {
+      padding: 6,
+    },
+    loadingSpinner: { marginTop: 14 },
+    name: {
+      marginTop: 14,
+      fontSize: 26,
+      fontWeight: "800",
+      color: t.textPrimary,
+    },
+    price: {
+      marginTop: 10,
+      fontSize: 40,
+      fontWeight: "900",
+      color: t.textPrimary,
+    },
+    cameraCard: {
+      marginTop: 10,
+      marginHorizontal: 16,
+      height: 360,
+      borderRadius: 14,
+      overflow: "hidden",
+      backgroundColor: "#000",
+    },
+    overlay: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    frame: {
+      width: "86%",
+      height: "72%",
+    },
+    bottomBar: {
+      flexDirection: "row",
+      gap: 10,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+    },
+    smallBtn: {
+      flex: 1,
+      flexDirection: "row",
+      justifyContent: "space-around",
+      backgroundColor: t.btnBg,
+      paddingVertical: 12,
+      borderRadius: 10,
+      alignItems: "center",
+    },
+    smallBtnOff: {
+      backgroundColor: t.btnBgOff,
+    },
+    smallBtnText: {
+      color: t.btnText,
+      fontWeight: "800",
+    },
+    tinyBtn: {
+      flexDirection: "row",
+      justifyContent: "space-around",
+      backgroundColor: t.btnBg,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: 6,
+      alignItems: "center",
+    },
+    tinyBtnText: {
+      color: t.btnText,
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    center: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 16,
+    },
+    btn: {
+      paddingVertical: 12,
+      paddingHorizontal: 18,
+      backgroundColor: t.btnBg,
+      borderRadius: 10,
+    },
+    btnText: {
+      color: t.btnText,
+      fontWeight: "700",
+    },
+  });
+}
