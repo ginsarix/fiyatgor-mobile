@@ -78,6 +78,7 @@ export function CatalogModal({
       animationType="slide"
       transparent
       onRequestClose={onClose}
+      supportedOrientations={["portrait", "portrait-upside-down", "landscape", "landscape-left", "landscape-right"]}
     >
       <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={catalogStyles.overlay}>

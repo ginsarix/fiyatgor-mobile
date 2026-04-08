@@ -13,15 +13,15 @@ import {
   TextInput,
   View,
 } from "react-native";
-import ModalScreen from "../server-code-modal";
+import { ServerCodeModal } from "../../components/server-code-modal";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
 import { debounce } from "lodash";
 import { ThemeColors, useTheme } from "@/constants/theme";
-import { CatalogModal } from "../catalog-modal";
-import { ScanHistory } from "../scan-history";
+import { CatalogModal } from "../../components/catalog-modal";
+import { ScanHistory } from "../../components/scan-history";
 import { ScanEntry } from "@/types/scan-history";
-import { OnboardingModal } from "../onboarding";
+import { OnboardingModal } from "../../components/onboarding";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function HomeScreen() {
@@ -493,7 +493,7 @@ export default function HomeScreen() {
           />
         )}
       </View>
-      <ModalScreen
+      <ServerCodeModal
         serverCodeChanged={(serverCode) => setServerCode(serverCode)}
         isVisible={serverCodeModal}
         onClose={() => setServerCodeModal(false)}

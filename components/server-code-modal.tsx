@@ -51,7 +51,7 @@ const useGradualAnimation = () => {
   return { height };
 };
 
-export default function ServerCodeModal({
+export function ServerCodeModal({
   serverCodeChanged,
   isVisible,
   onClose,
@@ -142,6 +142,7 @@ export default function ServerCodeModal({
       onRequestClose={onClose}
       transparent
       visible={isVisible}
+      supportedOrientations={["portrait", "portrait-upside-down", "landscape", "landscape-left", "landscape-right"]}
     >
       <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={styles.overlay}>

@@ -3,7 +3,7 @@
     "name": "Fiyat Gör",
     "slug": "fiyatgor-mobile",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "fiyatgormobile",
     "userInterfaceStyle": "automatic",
@@ -13,7 +13,19 @@
       "infoPlist": {
         "bundleIdentifier": "com.panuteknoloji.fiyatgor",
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "Uygulama, ürün barkodlarını ve QR kodlarını tarayarak fiyat bilgilerini göstermek için kamerayı kullanır."
+        "NSCameraUsageDescription": "Uygulama, ürün barkodlarını ve QR kodlarını tarayarak fiyat bilgilerini göstermek için kamerayı kullanır.",
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ],
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
       },
       "bundleIdentifier": "com.panuteknoloji.fiyatgor"
     },
@@ -24,9 +36,6 @@
         "backgroundImage": "./assets/images/android-icon-background.png"
       },
       "edgeToEdgeEnabled": true,
-      "android": {
-        "softwareKeyboardLayoutMode": "manual"
-      },
       "predictiveBackGestureEnabled": false,
       "permissions": ["CAMERA", "android.permission.CAMERA"],
       "package": "com.panu.fiyatgor"

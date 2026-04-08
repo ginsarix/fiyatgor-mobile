@@ -112,6 +112,7 @@ export function OnboardingModal({
       animationType="none"
       transparent
       onRequestClose={handleClose}
+      supportedOrientations={["portrait", "portrait-upside-down", "landscape", "landscape-left", "landscape-right"]}
     >
       <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={s.overlay}>
