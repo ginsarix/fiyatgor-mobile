@@ -8,7 +8,10 @@ expo-env.d.ts
 
 node_modules
 .expo
+
 .env
+.env.local
+
 .vscode
 
 .DS_Store
