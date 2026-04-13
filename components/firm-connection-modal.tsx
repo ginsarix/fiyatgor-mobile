@@ -30,6 +30,8 @@ import { ThemeColors, useTheme } from "@/constants/theme";
 
 type Props = PropsWithChildren<{
   serverCodeChanged: (serverCode: string) => unknown;
+  firmCodeChanged: (firmCode: string) => unknown;
+  connectionModeChanged: (mode: "firm" | "server") => unknown;
   isVisible: boolean;
   onClose: () => void;
 }>;
@@ -51,26 +53,40 @@ const useGradualAnimation = () => {
   return { height };
 };
 
-export function ServerCodeModal({
+export function FirmConnectionModal({
   serverCodeChanged,
+  firmCodeChanged,
+  connectionModeChanged,
   isVisible,
   onClose,
 }: Props) {
   const t = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
 
-  const [hasEverSaved, setHasEverSaved] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [hasServerCodeEverSaved, setHasServerCodeEverSaved] = useState(false);
+  const [serverCodeSaving, setServerCodeSaving] = useState(false);
   const [serverCode, setServerCode] = useState("");
+
+  const [hasFirmCodeEverSaved, setHasFirmCodeEverSaved] = useState(false);
+  const [firmCodeSaving, setFirmCodeSaving] = useState(false);
+  const [firmCode, setFirmCode] = useState("");
+
+  const [connectionMode, setConnectionMode] = useState<"firm" | "server">("server");
 
   const translateY = useSharedValue(800);
   const { height } = useGradualAnimation();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    (async () => {
-      setServerCode((await AsyncStorage.getItem("server-code")) ?? "diademo");
-    })();
+    AsyncStorage.multiGet(["server-code", "firm-code", "connection-mode"])
+      .then(([[, serverCode], [, firmCode], [, mode]]) => {
+        setServerCode(serverCode ?? "diademo");
+        setFirmCode(firmCode ?? "00001");
+        const savedMode = mode === "firm" || mode === "server" ? mode : "server";
+        setConnectionMode(savedMode);
+        connectionModeChanged(savedMode);
+      })
+      .catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -83,8 +99,18 @@ export function ServerCodeModal({
     () =>
       debounce((value: string) => {
         AsyncStorage.setItem("server-code", value);
-        setHasEverSaved(true);
-        setSaving(false);
+        setHasServerCodeEverSaved(true);
+        setServerCodeSaving(false);
+      }, 750),
+    [],
+  );
+
+  const debouncedFirmCodeSetter = useMemo(
+    () =>
+      debounce((value: string) => {
+        AsyncStorage.setItem("firm-code", value);
+        setHasFirmCodeEverSaved(true);
+        setFirmCodeSaving(false);
       }, 750),
     [],
   );
@@ -93,10 +119,26 @@ export function ServerCodeModal({
     serverCodeChanged(serverCode);
   }, [serverCode]);
 
+  useEffect(() => {
+    firmCodeChanged(firmCode);
+  }, [firmCode]);
+
   function setServerCodeInput(v: string) {
     setServerCode(v);
-    setSaving(true);
+    setServerCodeSaving(true);
     debouncedServerCodeSetter(v);
+  }
+
+  function setFirmCodeInput(v: string) {
+    setFirmCode(v);
+    setFirmCodeSaving(true);
+    debouncedFirmCodeSetter(v);
+  }
+
+  function selectConnectionMode(mode: "firm" | "server") {
+    setConnectionMode(mode);
+    connectionModeChanged(mode);
+    AsyncStorage.setItem("connection-mode", mode);
   }
 
   const dismissSheet = () => {
@@ -142,18 +184,62 @@ export function ServerCodeModal({
       onRequestClose={onClose}
       transparent
       visible={isVisible}
-      supportedOrientations={["portrait", "portrait-upside-down", "landscape", "landscape-left", "landscape-right"]}
+      supportedOrientations={[
+        "portrait",
+        "portrait-upside-down",
+        "landscape",
+        "landscape-left",
+        "landscape-right",
+      ]}
     >
       <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={styles.overlay}>
           <GestureDetector gesture={gesture}>
             <Animated.View style={[styles.modalContent, animatedStyle]}>
               <View style={styles.titleContainer}>
-                <Text style={styles.title}>Sunucu Kodunu Değiştir</Text>
+                <Text style={styles.title}>Firma Bağlantısını Değiştir</Text>
                 <Pressable onPress={onClose}>
                   <MaterialIcons name="close" color="#fff" size={22} />
                 </Pressable>
               </View>
+              <View style={styles.radioGroup}>
+                {(["firm", "server"] as const).map((mode) => (
+                  <Pressable
+                    key={mode}
+                    style={styles.radioRow}
+                    onPress={() => selectConnectionMode(mode)}
+                  >
+                    <View style={styles.radioOuter}>
+                      {connectionMode === mode && (
+                        <View style={styles.radioInner} />
+                      )}
+                    </View>
+                    <Text style={styles.radioLabel}>
+                      {mode === "firm"
+                        ? "Firma kodu ile bağlan"
+                        : "Sunucu kodu ile bağlan"}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Firma Kodu</Text>
+                <TextInput
+                  placeholder="Firma Kodu"
+                  placeholderTextColor={t.inputPlaceholder}
+                  onChangeText={setFirmCodeInput}
+                  value={firmCode}
+                  style={styles.input}
+                  clearButtonMode="always"
+                />
+                <Text style={styles.saveStateText}>
+                  {firmCodeSaving
+                    ? "Kaydediliyor..."
+                    : hasFirmCodeEverSaved && !firmCodeSaving && "Kaydedildi"}
+                </Text>
+              </View>
+
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Sunucu Kodu</Text>
                 <TextInput
@@ -162,11 +248,14 @@ export function ServerCodeModal({
                   onChangeText={setServerCodeInput}
                   value={serverCode}
                   style={styles.input}
+                  clearButtonMode="always"
                 />
                 <Text style={styles.saveStateText}>
-                  {saving
+                  {serverCodeSaving
                     ? "Kaydediliyor..."
-                    : hasEverSaved && !saving && "Kaydedildi"}
+                    : hasServerCodeEverSaved &&
+                      !serverCodeSaving &&
+                      "Kaydedildi"}
                 </Text>
               </View>
             </Animated.View>
@@ -203,6 +292,36 @@ function makeStyles(t: ThemeColors) {
     title: {
       color: "#fff",
       fontSize: 16,
+    },
+    radioGroup: {
+      paddingHorizontal: 16,
+      paddingTop: 14,
+      paddingBottom: 4,
+      gap: 12,
+    },
+    radioRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    radioOuter: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      borderWidth: 2,
+      borderColor: t.textPrimary,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    radioInner: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: t.textPrimary,
+    },
+    radioLabel: {
+      color: t.textPrimary,
+      fontSize: 15,
     },
     inputContainer: {
       padding: 16,

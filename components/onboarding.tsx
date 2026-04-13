@@ -112,90 +112,98 @@ export function OnboardingModal({
       animationType="none"
       transparent
       onRequestClose={handleClose}
-      supportedOrientations={["portrait", "portrait-upside-down", "landscape", "landscape-left", "landscape-right"]}
+      supportedOrientations={[
+        "portrait",
+        "portrait-upside-down",
+        "landscape",
+        "landscape-left",
+        "landscape-right",
+      ]}
     >
       <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={s.overlay}>
-          <GestureDetector gesture={gesture}>
-            <Animated.View style={[s.sheet, animatedStyle]}>
-              {/* Handle */}
-              <View style={s.handleArea}>
-                <View style={s.handle} />
+          <Animated.View style={[s.sheet, animatedStyle]}>
+            <GestureDetector gesture={gesture}>
+              <View>
+                {/* Handle */}
+                <View style={s.handleArea}>
+                  <View style={s.handle} />
+                </View>
+
+                {/* Header */}
+                <View style={s.header}>
+                  <View style={s.headerSpacer} />
+                  <Text style={s.headerTitle}>Nasıl Kullanılır?</Text>
+                  <Pressable style={s.closeIconBtn} onPress={handleClose}>
+                    <Text style={s.closeIconText}>✕</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </GestureDetector>
+
+            {/* Scrollable content */}
+            <ScrollView
+              style={s.scroll}
+              contentContainerStyle={s.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Hero */}
+              <View style={s.hero}>
+                <View style={s.heroIconWrap}>
+                  <MaterialIcons
+                    name="barcode-reader"
+                    size={48}
+                    color={t.btnText}
+                  />
+                </View>
+                <Text style={s.heroTitle}>FiyatGör</Text>
+                <Text style={s.heroSub}>
+                  Barkod okuyarak ürün fiyatlarını anında öğrenin. Mağaza
+                  personeli ve kendi sunucu koduna sahip herkes kullanabilir.
+                </Text>
               </View>
 
-              {/* Header */}
-              <View style={s.header}>
-                <View style={s.headerSpacer} />
-                <Text style={s.headerTitle}>Nasıl Kullanılır?</Text>
-                <Pressable style={s.closeIconBtn} onPress={handleClose}>
-                  <Text style={s.closeIconText}>✕</Text>
-                </Pressable>
-              </View>
-
-              {/* Scrollable content */}
-              <ScrollView
-                style={s.scroll}
-                contentContainerStyle={s.scrollContent}
-                showsVerticalScrollIndicator={false}
-              >
-                {/* Hero */}
-                <View style={s.hero}>
-                  <View style={s.heroIconWrap}>
+              {/* Sections */}
+              {SECTIONS.map((sec) => (
+                <View key={sec.title} style={s.card}>
+                  <View style={s.cardIcon}>
                     <MaterialIcons
-                      name="barcode-reader"
-                      size={48}
+                      name={sec.icon}
+                      size={22}
                       color={t.btnText}
                     />
                   </View>
-                  <Text style={s.heroTitle}>FiyatGör</Text>
-                  <Text style={s.heroSub}>
-                    Barkod okuyarak ürün fiyatlarını anında öğrenin. Mağaza
-                    personeli ve kendi sunucu koduna sahip herkes kullanabilir.
-                  </Text>
-                </View>
-
-                {/* Sections */}
-                {SECTIONS.map((sec) => (
-                  <View key={sec.title} style={s.card}>
-                    <View style={s.cardIcon}>
-                      <MaterialIcons
-                        name={sec.icon}
-                        size={22}
-                        color={t.btnText}
-                      />
-                    </View>
-                    <View style={s.cardBody}>
-                      <Text style={s.cardTitle}>{sec.title}</Text>
-                      <Text style={s.cardText}>{sec.body}</Text>
-                      {sec.accent && (
-                        <Pressable
-                          onPress={() => Linking.openURL(sec.accent!)}
-                          style={s.linkBtn}
-                        >
-                          <MaterialIcons
-                            name="open-in-new"
-                            size={14}
-                            color={t.btnText}
-                            style={{ marginRight: 6 }}
-                          />
-                          <Text style={s.linkText}>panuteknoloji.com.tr</Text>
-                        </Pressable>
-                      )}
-                    </View>
+                  <View style={s.cardBody}>
+                    <Text style={s.cardTitle}>{sec.title}</Text>
+                    <Text style={s.cardText}>{sec.body}</Text>
+                    {sec.accent && (
+                      <Pressable
+                        onPress={() => Linking.openURL(sec.accent!)}
+                        style={s.linkBtn}
+                      >
+                        <MaterialIcons
+                          name="open-in-new"
+                          size={14}
+                          color={t.btnText}
+                          style={{ marginRight: 6 }}
+                        />
+                        <Text style={s.linkText}>panuteknoloji.com.tr</Text>
+                      </Pressable>
+                    )}
                   </View>
-                ))}
+                </View>
+              ))}
 
-                <View style={{ height: 8 }} />
-              </ScrollView>
+              <View style={{ height: 8 }} />
+            </ScrollView>
 
-              {/* Footer */}
-              <View style={s.footer}>
-                <Pressable style={s.closeBtn} onPress={handleClose}>
-                  <Text style={s.closeBtnText}>Anladım</Text>
-                </Pressable>
-              </View>
-            </Animated.View>
-          </GestureDetector>
+            {/* Footer */}
+            <View style={s.footer}>
+              <Pressable style={s.closeBtn} onPress={handleClose}>
+                <Text style={s.closeBtnText}>Anladım</Text>
+              </Pressable>
+            </View>
+          </Animated.View>
         </View>
       </GestureHandlerRootView>
     </Modal>

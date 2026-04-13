@@ -11,10 +11,28 @@ export type ProductResponse = {
   message: string;
 };
 
-export async function getProductByBarcode(serverCode: string, barcode: string) {
+type Identifier =
+  | { serverCode: string; firmCode?: never }
+  | { serverCode?: never; firmCode: string };
+
+type getProductByBarcodeProps = Identifier & { barcode: string };
+
+export async function getProductByBarcode({
+  serverCode,
+  firmCode,
+  barcode,
+}: getProductByBarcodeProps) {
+  if (!serverCode && !firmCode) {
+    throw new Error("Sunucu kodu veya firma kodu girilmelidir");
+  }
+
   try {
+    const identifierResource = serverCode
+      ? `servers/${serverCode}`
+      : `firms/${firmCode!}`;
+
     const res = await fetch(
-      `${API_URL}/servers/${serverCode}/products/${barcode}`,
+      `${API_URL}/${identifierResource}/products/${barcode}`,
     );
 
     const text = await res.text(); // önce text al
