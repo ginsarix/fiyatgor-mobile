@@ -24,7 +24,8 @@
           "UIInterfaceOrientationPortraitUpsideDown",
           "UIInterfaceOrientationLandscapeLeft",
           "UIInterfaceOrientationLandscapeRight"
-        ]
+        ],
+        "NSLocationWhenInUseUsageDescription": "Konum bilgisi aktif olarak kullanılmamaktadır, ancak üçüncü taraf kütüphaneler tarafından gerekli görülebilir."
       },
       "bundleIdentifier": "com.panuteknoloji.fiyatgor",
       "appleTeamId": "T6JL5WN5L2"
