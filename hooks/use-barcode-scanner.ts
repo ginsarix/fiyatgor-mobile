@@ -26,11 +26,16 @@ export function useBarcodeScanner(onScan: (args: { data: string }) => void) {
     const frameH = height * 0.72;
     const cx = bounds.origin.x + bounds.size.width / 2;
     const cy = bounds.origin.y + bounds.size.height / 2;
-    return cx >= frameX && cx <= frameX + frameW && cy >= frameY && cy <= frameY + frameH;
+    return (
+      cx >= frameX &&
+      cx <= frameX + frameW &&
+      cy >= frameY &&
+      cy <= frameY + frameH
+    );
   };
 
   const codeScanner = useCodeScanner({
-    codeTypes: ["qr", "ean-13", "ean-8", "upc-a", "upc-e"],
+    codeTypes: ["ean-13", "ean-8", "upc-a", "upc-e"],
     onCodeScanned: (codes, frame) => {
       if (codes.length === 0) return;
       const code = codes[0];
@@ -107,7 +112,16 @@ export function useBarcodeScanner(onScan: (args: { data: string }) => void) {
         }
       }
 
-      onScanRef.current({ data: code.value });
+      // UPC-A barcodes are padded to 13 digits with a leading 0 by AVFoundation (iOS).
+      // Strip it to get the canonical 12-digit UPC-A value.
+      const value =
+        (code.type === "upc-a" || code.type === "ean-13") &&
+        code.value.length === 13 &&
+        code.value.startsWith("0")
+          ? code.value.slice(1)
+          : code.value;
+
+      onScanRef.current({ data: value });
     },
   });
 
