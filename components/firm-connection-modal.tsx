@@ -71,7 +71,9 @@ export function FirmConnectionModal({
   const [firmCodeSaving, setFirmCodeSaving] = useState(false);
   const [firmCode, setFirmCode] = useState("");
 
-  const [connectionMode, setConnectionMode] = useState<"firm" | "server">("server");
+  const [connectionMode, setConnectionMode] = useState<"firm" | "server">(
+    "server",
+  );
 
   const translateY = useSharedValue(800);
   const { height } = useGradualAnimation();
@@ -82,7 +84,8 @@ export function FirmConnectionModal({
       .then(([[, serverCode], [, firmCode], [, mode]]) => {
         setServerCode(serverCode ?? "diademo");
         setFirmCode(firmCode ?? "00001");
-        const savedMode = mode === "firm" || mode === "server" ? mode : "server";
+        const savedMode =
+          mode === "firm" || mode === "server" ? mode : "server";
         setConnectionMode(savedMode);
         connectionModeChanged(savedMode);
       })
@@ -98,7 +101,7 @@ export function FirmConnectionModal({
   const debouncedServerCodeSetter = useMemo(
     () =>
       debounce((value: string) => {
-        AsyncStorage.setItem("server-code", value);
+        AsyncStorage.setItem("server-code", value.trim());
         setHasServerCodeEverSaved(true);
         setServerCodeSaving(false);
       }, 750),

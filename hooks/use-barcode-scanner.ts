@@ -35,7 +35,7 @@ export function useBarcodeScanner(onScan: (args: { data: string }) => void) {
   };
 
   const codeScanner = useCodeScanner({
-    codeTypes: ["ean-13", "ean-8", "upc-a", "upc-e"],
+    codeTypes: ["ean-13", "ean-8", "upc-a", "upc-e", "code-128"],
     onCodeScanned: (codes, frame) => {
       if (codes.length === 0) return;
       const code = codes[0];
