@@ -52,12 +52,4 @@
     "typescript": "~5.9.3"
   },
   "private": true,
-  "pnpm": {
-    "overrides": {
-      "@xmldom/xmldom": "0.8.10"
-    },
-    "ignoredBuiltDependencies": [
-      "unrs-resolver"
-    ]
-  }
 }
