@@ -14,6 +14,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 import { ThemeColors, useTheme } from "@/constants/theme";
+import { formatDiscountEndsAt, formatPrice } from "@/lib/format";
 import { useSounds } from "@/hooks/use-sounds";
 import { useProductLookup } from "@/hooks/use-product-lookup";
 import { useBarcodeScanner } from "@/hooks/use-barcode-scanner";
@@ -32,6 +33,8 @@ export default function HomeScreen() {
 
   const [isScanning, setIsScanning] = useState(true);
   const [torchOn, setTorchOn] = useState(false);
+  const [discountDetailExpanded, setDiscountDetailExpanded] = useState(false);
+  const [discountDetailTruncated, setDiscountDetailTruncated] = useState(false);
 
   const [serverCode, setServerCode] = useState("");
   const [firmCode, setFirmCode] = useState("");
@@ -56,6 +59,10 @@ export default function HomeScreen() {
     productName,
     price,
     currency,
+    discountedPrice,
+    discountActive,
+    discountEndsAt,
+    discountDetail,
     scanHistory,
     setScanHistory,
     onScan,
@@ -69,6 +76,11 @@ export default function HomeScreen() {
   });
 
   const { codeScanner, barcodeBounds, onCameraLayout } = useBarcodeScanner(onScan);
+
+  useEffect(() => {
+    setDiscountDetailExpanded(false);
+    setDiscountDetailTruncated(false);
+  }, [discountDetail]);
 
   const handlePermission = async () => {
     if (await requestPermission()) return;
@@ -118,9 +130,67 @@ export default function HomeScreen() {
               {productName !== undefined && (
                 <Text style={styles.name}>{productName ?? "Ürün Bulunamadı"}</Text>
               )}
+
+              {discountActive && discountedPrice && (
+                <Pressable
+                  style={styles.discountBadge}
+                  onPress={() => {
+                    if (discountDetailTruncated || discountDetailExpanded) {
+                      setDiscountDetailExpanded((v) => !v);
+                    }
+                  }}
+                  hitSlop={6}
+                >
+                  <MaterialIcons
+                    name="local-offer"
+                    size={13}
+                    color={t.discountAccent}
+                  />
+                  <Text
+                    style={styles.discountBadgeText}
+                    numberOfLines={discountDetailExpanded ? undefined : 1}
+                    ellipsizeMode="tail"
+                    onTextLayout={(e) => {
+                      if (!discountDetailExpanded) {
+                        const line = e.nativeEvent.lines[0]?.text ?? "";
+                        setDiscountDetailTruncated(line.includes("…"));
+                      }
+                    }}
+                  >
+                    {discountDetail ?? "İndirim"}
+                  </Text>
+                  {discountDetailTruncated && (
+                    <MaterialIcons
+                      name={discountDetailExpanded ? "expand-less" : "expand-more"}
+                      size={15}
+                      color={t.discountAccent}
+                    />
+                  )}
+                </Pressable>
+              )}
+
+              {discountActive && discountedPrice && price && (
+                <Text style={styles.originalPrice}>
+                  {formatPrice(price, currency)}
+                </Text>
+              )}
+
               {price && (
-                <Text style={styles.price}>
-                  {`${Number(price).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`}
+                <Text
+                  style={[
+                    styles.price,
+                    discountActive && discountedPrice && styles.priceDiscounted,
+                  ]}
+                >
+                  {discountActive && discountedPrice
+                    ? formatPrice(discountedPrice, currency)
+                    : formatPrice(price, currency)}
+                </Text>
+              )}
+
+              {discountActive && discountEndsAt && (
+                <Text style={styles.discountEndsAt}>
+                  {`İndirim bitişi: ${formatDiscountEndsAt(discountEndsAt)}`}
                 </Text>
               )}
             </>
@@ -265,6 +335,41 @@ function makeHomeStyles(t: ThemeColors) {
       fontSize: 40,
       fontWeight: "900",
       color: t.textPrimary,
+    },
+    priceDiscounted: {
+      color: t.discountAccent,
+    },
+    discountBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      alignSelf: "center",
+      maxWidth: "90%",
+      gap: 4,
+      marginTop: 10,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: t.discountBadgeBorder,
+      backgroundColor: t.discountBadgeBg,
+    },
+    discountBadgeText: {
+      flexShrink: 1,
+      fontSize: 12,
+      fontWeight: "700",
+      color: t.discountAccent,
+    },
+    originalPrice: {
+      marginTop: 8,
+      fontSize: 16,
+      fontWeight: "600",
+      color: t.originalPriceText,
+      textDecorationLine: "line-through",
+    },
+    discountEndsAt: {
+      marginTop: 4,
+      fontSize: 12,
+      color: t.textSecondary,
     },
     bottomBar: {
       flexDirection: "row",

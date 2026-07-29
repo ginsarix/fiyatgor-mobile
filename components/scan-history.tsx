@@ -1,4 +1,5 @@
 import { ThemeColors, useTheme } from "@/constants/theme";
+import { formatPrice } from "@/lib/format";
 import { ScanEntry } from "@/types/scan-history";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useMemo, useState } from "react";
@@ -56,6 +57,7 @@ function ScanHistoryItem({
 }) {
   const [open, setOpen] = useState(false);
   const found = entry.productName !== null;
+  const discounted = found && entry.discountActive && entry.discountedPrice;
 
   return (
     <View style={styles.card}>
@@ -68,6 +70,11 @@ function ScanHistoryItem({
         <Text style={styles.barcode} numberOfLines={1}>
           {entry.barcode}
         </Text>
+        {discounted && (
+          <View style={[styles.badge, styles.badgeDiscount]}>
+            <Text style={styles.discountBadgeText}>İndirimde</Text>
+          </View>
+        )}
         <View
           style={[
             styles.badge,
@@ -85,8 +92,18 @@ function ScanHistoryItem({
           {found ? (
             <>
               <Text style={styles.bodyName}>{entry.productName}</Text>
-              <Text style={styles.bodyPrice}>
-                {`${Number(entry.price).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${entry.currency}`}
+              {discounted && (
+                <Text style={styles.bodyOriginalPrice}>
+                  {formatPrice(entry.price!, entry.currency)}
+                </Text>
+              )}
+              <Text
+                style={[styles.bodyPrice, discounted && styles.bodyPriceDiscounted]}
+              >
+                {formatPrice(
+                  discounted ? entry.discountedPrice! : entry.price!,
+                  entry.currency,
+                )}
               </Text>
             </>
           ) : (
@@ -132,10 +149,20 @@ function makeHistoryStyles(t: ThemeColors) {
     badgeNotFound: {
       backgroundColor: t.badgeNotFoundBg,
     },
+    badgeDiscount: {
+      backgroundColor: t.discountBadgeBg,
+      borderWidth: 1,
+      borderColor: t.discountBadgeBorder,
+    },
     badgeText: {
       fontSize: 11,
       fontWeight: "700",
       color: t.badgeText,
+    },
+    discountBadgeText: {
+      fontSize: 11,
+      fontWeight: "700",
+      color: t.discountAccent,
     },
     body: {
       paddingHorizontal: 16,
@@ -154,6 +181,16 @@ function makeHistoryStyles(t: ThemeColors) {
       fontSize: 22,
       fontWeight: "900",
       color: t.textPrimary,
+    },
+    bodyPriceDiscounted: {
+      color: t.discountAccent,
+    },
+    bodyOriginalPrice: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: t.originalPriceText,
+      textDecorationLine: "line-through",
+      marginBottom: 2,
     },
     bodyNotFound: {
       fontSize: 14,

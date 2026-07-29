@@ -40,6 +40,10 @@ export function useProductLookup({
   const [productName, setProductName] = useState<string | null | undefined>();
   const [price, setPrice] = useState<string | null>();
   const [currency, setCurrency] = useState<string | null>();
+  const [discountedPrice, setDiscountedPrice] = useState<string | null>(null);
+  const [discountActive, setDiscountActive] = useState(false);
+  const [discountEndsAt, setDiscountEndsAt] = useState<string | null>(null);
+  const [discountDetail, setDiscountDetail] = useState<string | null>(null);
   const [scanHistory, setScanHistory] = useState<ScanEntry[]>([]);
 
   const nextIdRef = useRef(0);
@@ -85,6 +89,10 @@ export function useProductLookup({
         setProductName(null);
         setPrice(null);
         setCurrency(null);
+        setDiscountedPrice(null);
+        setDiscountActive(false);
+        setDiscountEndsAt(null);
+        setDiscountDetail(null);
         appendHistory({ barcode: code, productName: null, price: null, currency: null });
         return;
       }
@@ -92,14 +100,24 @@ export function useProductLookup({
       setProductName(response.product.name);
       setPrice(response.product.price);
       setCurrency(response.product.currency);
+      setDiscountedPrice(response.product.discountedPrice);
+      setDiscountActive(response.product.discountActive);
+      setDiscountEndsAt(response.product.discountEndsAt);
+      setDiscountDetail(response.product.discountDetail);
       appendHistory({
         barcode: code,
         productName: response.product.name,
         price: response.product.price,
         currency: response.product.currency,
+        discountedPrice: response.product.discountedPrice,
+        discountActive: response.product.discountActive,
       });
       await initiateSuccessUX();
     } catch {
+      setDiscountedPrice(null);
+      setDiscountActive(false);
+      setDiscountEndsAt(null);
+      setDiscountDetail(null);
       appendHistory({ barcode: code, productName: null, price: null, currency: null });
       await initiateErrorUX();
     } finally {
@@ -109,16 +127,26 @@ export function useProductLookup({
   };
 
   const demoScan = async () => {
+    const demoDiscountEndsAt = new Date(
+      Date.now() + 3 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
     setBarcode("5555555555555");
     await initiateSuccessUX();
     setProductName("İnşaat Demiri (8mm)");
     setPrice("12000");
     setCurrency("TL");
+    setDiscountedPrice("9600");
+    setDiscountActive(true);
+    setDiscountEndsAt(demoDiscountEndsAt);
+    setDiscountDetail("Demo Kampanya: %20 İndirim");
     appendHistory({
       barcode: "5555555555555",
       productName: "İnşaat Demiri (8mm)",
       price: "12000",
       currency: "TL",
+      discountedPrice: "9600",
+      discountActive: true,
       demo: true,
     });
   };
@@ -127,6 +155,10 @@ export function useProductLookup({
     barcode,
     setBarcode,
     productLoading,
+    discountedPrice,
+    discountActive,
+    discountEndsAt,
+    discountDetail,
     productName,
     price,
     currency,

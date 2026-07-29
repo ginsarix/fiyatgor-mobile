@@ -4,6 +4,11 @@ export type Product = {
   name: string;
   price: string;
   currency: string;
+  discountedPrice: string | null;
+  discountStartsAt: string | null;
+  discountEndsAt: string | null;
+  discountDetail: string | null;
+  discountActive: boolean;
 };
 
 export type ProductResponse = {

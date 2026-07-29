@@ -4,5 +4,7 @@ export type ScanEntry = {
   productName: string | null;
   price: string | null;
   currency: string | null;
+  discountedPrice?: string | null;
+  discountActive?: boolean;
   demo?: boolean;
 };
